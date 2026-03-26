@@ -2,8 +2,8 @@ CURRENT_GAME_ID_FILE = "current_game_id.txt"
 LAST_SUCCESSFUL_GAME_ID_FILE = "last_successful_game_id.txt"
 RESULTS_DIR = "results"
 
-# Path to the local GloVe 6B 300d embedding file
-GLOVE_PATH = "glove.6B.300d.txt"
+# Path to GloVe embeddings (supports .zip or plain .txt)
+GLOVE_PATH = "glove.6B.zip"
 
 EMB_CENTER = True           # subtract mean before whitening
 EMB_REMOVE_TOP_K = 3        # remove top-k principal directions (0 to skip)
@@ -39,6 +39,6 @@ EARLY_PROBE_TURNS = 8
 
 API_BASE = "https://api.contexto.me"
 LANG = "en"
-RATE_LIMIT_SLEEP = 0.1
+RATE_LIMIT_SLEEP = 0.5
 
 BAD_WORDS_CACHE = "bad_words.json"

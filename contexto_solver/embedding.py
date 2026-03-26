@@ -1,3 +1,5 @@
+import io
+import zipfile
 from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
@@ -18,8 +20,8 @@ class GloveEmbedding:
         self._load_glove(glove_path)
         if not self.word_to_vec:
             raise RuntimeError(
-                f"No vectors loaded from '{glove_path}'. Ensure the GloVe 6B 300d file exists and is populated. "
-                "You can download it from https://nlp.stanford.edu/data/glove.6B.zip and place 'glove.6B.300d.txt' in the project root."
+                f"No vectors loaded from '{glove_path}'. "
+                "Download glove.6B.zip from https://nlp.stanford.edu/data/glove.6B.zip and place it in the project root."
             )
 
         # Build dense vocab & matrix
@@ -43,7 +45,7 @@ class GloveEmbedding:
         self.vocab_index = {w: i for i, w in enumerate(self.vocab)}
 
     def _load_glove(self, path: str) -> None:
-        with open(path, "r", encoding="utf-8") as f:
+        with self._open_glove(path) as f:
             for line in f:
                 parts = line.rstrip().split(" ")
                 if len(parts) < self.dim + 1:
@@ -57,6 +59,13 @@ class GloveEmbedding:
                 if n > 0:
                     vec = vec / n
                 self.word_to_vec[word] = vec
+
+    def _open_glove(self, path: str):
+        if path.endswith(".zip"):
+            target = f"glove.6B.{self.dim}d.txt"
+            zf = zipfile.ZipFile(path, "r")
+            return io.TextIOWrapper(zf.open(target), encoding="utf-8")
+        return open(path, "r", encoding="utf-8")
 
     @staticmethod
     def _whiten_isotropic(X: np.ndarray, center: bool, remove_top_k: int) -> np.ndarray:

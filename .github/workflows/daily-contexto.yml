@@ -35,19 +35,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Cache GloVe 6B 300d
+    - name: Cache GloVe 6B zip
       uses: actions/cache@v4
       with:
-        path: glove.6B.300d.txt
-        key: glove-6B-300d-v1
+        path: glove.6B.zip
+        key: glove-6B-zip-v1
 
     - name: Download GloVe if missing
       run: |
-        if [ ! -f glove.6B.300d.txt ]; then
+        if [ ! -f glove.6B.zip ]; then
           curl -L -o glove.6B.zip https://nlp.stanford.edu/data/glove.6B.zip
-          sudo apt-get update && sudo apt-get install -y unzip | cat
-          unzip -j glove.6B.zip glove.6B.300d.txt
-          rm -f glove.6B.zip
         fi
 
     - name: Play Contexto Game

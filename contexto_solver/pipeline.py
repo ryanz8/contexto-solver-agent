@@ -65,11 +65,12 @@ def _prepare_vocab(embedder: GloveEmbedding):
     return vocab, X
 
 
-def play_game_and_record():
+def play_game_and_record(game_id=None):
     ensure_dir("results")
 
-    current_game_id = load_current_game_id()
-    game_id = current_game_id + 1
+    if game_id is None:
+        current_game_id = load_current_game_id()
+        game_id = current_game_id + 1
     timestamp = now_timestamp()
     result_file = result_filepath(game_id, timestamp)
 

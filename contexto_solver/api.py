@@ -82,8 +82,9 @@ class ContextoAPI:
         now = time.time()
         # Simple client-side rate limit
         from .config import RATE_LIMIT_SLEEP  # keep consistent with your config
-        if now - self._last_time < RATE_LIMIT_SLEEP:
-            time.sleep(RATE_LIMIT_SLEEP)
+        elapsed = now - self._last_time
+        if elapsed < RATE_LIMIT_SLEEP:
+            time.sleep(RATE_LIMIT_SLEEP - elapsed)
 
         url = f"{self.base_url}/machado/{self.language}/game/{self.game_id}/{word}"
         try:

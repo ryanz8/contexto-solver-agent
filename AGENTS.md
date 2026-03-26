@@ -47,7 +47,7 @@ python automation_script.py --reset-state     # clear IDs + results
 python automation_script.py --reset-docs       # reset RESULTS.md only
 ```
 
-**Prerequisite**: `glove.6B.300d.txt` in repo root (~822MB uncompressed). Download from https://nlp.stanford.edu/data/glove.6B.zip. Gitignored.
+**Prerequisite**: `glove.6B.zip` in repo root (~842MB compressed). Download from https://nlp.stanford.edu/data/glove.6B.zip. Gitignored.
 
 ## Dependencies
 

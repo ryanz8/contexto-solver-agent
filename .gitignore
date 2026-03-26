@@ -15,3 +15,4 @@ env/
 models/
 sentence_transformers_cache/
 glove.6B.300d.txt
+glove.6B.zip
