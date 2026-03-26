@@ -166,6 +166,8 @@ def make_api_feedback_fn(api: "ContextoAPI", bad_words: Set[str]):
             state["hit"] = True
             print("[SUCCESS-DETECTED] Exact hit. Halting after this step.")
 
+        state["distance"] = raw.get("distance")
+
         print(f"Guess '{word}': raw={raw} mapped_score={score:.4f}")
         return float(score), state
 

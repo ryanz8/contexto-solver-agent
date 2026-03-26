@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import time
 import re
@@ -100,102 +101,118 @@ def play_game_and_record(game_id=None):
     stagnant = 0
     hit_seen = False
 
-    # --- Early probes ---
-    probe_words = [w for w in EARLY_PROBES if w in set(vocab)]
-    random.shuffle(probe_words)
-    probe_words = probe_words[: EARLY_PROBE_TURNS]
+    live_file = result_file + ".live"
 
-    # Greedy farthest seeds
-    far_seeds = _pick_seed_indices_farthest(emb_matrix, SEED_COUNT)
+    with open(live_file, "w") as live_fh:
+        def _log_entry(entry):
+            live_fh.write(json.dumps(entry) + "\n")
+            live_fh.flush()
 
-    # Make seed index list (probes + far seeds)
-    seed_idxs = []
-    seen = set()
-    for w in probe_words:
-        i = vocab.index(w)
-        if i not in excluded and i not in seen:
-            seed_idxs.append(i)
-            seen.add(i)
-    for i in far_seeds:
-        if i not in excluded and i not in seen:
-            seed_idxs.append(i)
-            seen.add(i)
+        # --- Early probes ---
+        probe_words = [w for w in EARLY_PROBES if w in set(vocab)]
+        random.shuffle(probe_words)
+        probe_words = probe_words[: EARLY_PROBE_TURNS]
 
-    # Evaluate seeds
-    for idx in seed_idxs:
-        if len(trajectory) >= EARLY_PROBE_TURNS + SEED_COUNT:
-            break
-        word = vocab[idx]
-        score, st = feedback_fn(word)
-        solver.update(idx, score)
-        excluded.add(idx)
-        hit_seen = hit_seen or st.get("hit", False)
-        trajectory.append({
-            "iter": len(trajectory)+1,
-            "mode": "seed",
-            "guess": word,
-            "score": float(score),
-            "best_so_far": vocab[solver.best_idx] if solver.best_idx is not None else None
-        })
-        if st.get("hit", False):
-            print("[SUCCESS] exact hit reported by API.")
-            break
+        # Greedy farthest seeds
+        far_seeds = _pick_seed_indices_farthest(emb_matrix, SEED_COUNT)
 
-    step = 0
-    # Main loop: run until hit OR vocab exhausted (no MAX_ITERS limit)
-    while not hit_seen and len(excluded) < len(vocab):
-        step += 1
-        guess_idx = solver.propose_next(excluded)
-        word = vocab[guess_idx]
-        score, st = feedback_fn(word)
-        solver.update(guess_idx, score)
-        excluded.add(guess_idx)
-        hit_seen = hit_seen or st.get("hit", False)
-        trajectory.append({
-            "iter": len(trajectory)+1,
-            "mode": "main",
-            "guess": word,
-            "score": float(score),
-            "best_so_far": vocab[solver.best_idx] if solver.best_idx is not None else None
-        })
+        # Make seed index list (probes + far seeds)
+        seed_idxs = []
+        seen = set()
+        for w in probe_words:
+            i = vocab.index(w)
+            if i not in excluded and i not in seen:
+                seed_idxs.append(i)
+                seen.add(i)
+        for i in far_seeds:
+            if i not in excluded and i not in seen:
+                seed_idxs.append(i)
+                seen.add(i)
 
-        print(
-            f"[STEP {step}] guess='{word}' score={score:.4f} best='{vocab[solver.best_idx] if solver.best_idx is not None else None}'={solver.best_sim:.4f}"
-        )
+        # Evaluate seeds
+        for idx in seed_idxs:
+            if len(trajectory) >= EARLY_PROBE_TURNS + SEED_COUNT:
+                break
+            word = vocab[idx]
+            score, st = feedback_fn(word)
+            solver.update(idx, score)
+            excluded.add(idx)
+            hit_seen = hit_seen or st.get("hit", False)
+            entry = {
+                "iter": len(trajectory)+1,
+                "mode": "seed",
+                "guess": word,
+                "score": float(score),
+                "distance": st.get("distance"),
+                "best_so_far": vocab[solver.best_idx] if solver.best_idx is not None else None
+            }
+            trajectory.append(entry)
+            _log_entry(entry)
+            if st.get("hit", False):
+                print("[SUCCESS] exact hit reported by API.")
+                break
 
-        if hit_seen:
-            print("[SUCCESS] exact hit reported by API.")
-            break
+        step = 0
+        # Main loop: run until hit OR vocab exhausted (no MAX_ITERS limit)
+        while not hit_seen and len(excluded) < len(vocab):
+            step += 1
+            guess_idx = solver.propose_next(excluded)
+            word = vocab[guess_idx]
+            score, st = feedback_fn(word)
+            solver.update(guess_idx, score)
+            excluded.add(guess_idx)
+            hit_seen = hit_seen or st.get("hit", False)
+            entry = {
+                "iter": len(trajectory)+1,
+                "mode": "main",
+                "guess": word,
+                "score": float(score),
+                "distance": st.get("distance"),
+                "best_so_far": vocab[solver.best_idx] if solver.best_idx is not None else None
+            }
+            trajectory.append(entry)
+            _log_entry(entry)
 
-        # Stagnation tracking
-        if solver.best_sim <= last_best + 1e-5:
-            stagnant += 1
-        else:
-            stagnant = 0
-            last_best = solver.best_sim
+            print(
+                f"[STEP {step}] guess='{word}' score={score:.4f} best='{vocab[solver.best_idx] if solver.best_idx is not None else None}'={solver.best_sim:.4f}"
+            )
 
-        # Diversify via farthest heuristic (safe: vocab already clean)
-        if stagnant >= 5 and solver.best_idx is not None and len(excluded) < len(vocab):
-            sims_to_best = emb_matrix @ emb_matrix[solver.best_idx]
-            far_idx = int(np.argmin(sims_to_best))
-            if far_idx not in excluded:
-                print("[DIVERSIFY] using distant word:", vocab[far_idx])
-                w2 = vocab[far_idx]
-                sc2, st2 = feedback_fn(w2)
-                solver.update(far_idx, sc2)
-                excluded.add(far_idx)
-                hit_seen = hit_seen or st2.get("hit", False)
-                trajectory.append({
-                    "iter": len(trajectory)+1,
-                    "mode": "jump",
-                    "guess": w2,
-                    "score": float(sc2),
-                    "best_so_far": vocab[solver.best_idx] if solver.best_idx is not None else None
-                })
+            if hit_seen:
+                print("[SUCCESS] exact hit reported by API.")
+                break
+
+            # Stagnation tracking
+            if solver.best_sim <= last_best + 1e-5:
+                stagnant += 1
+            else:
                 stagnant = 0
-                if hit_seen:
-                    print("[SUCCESS] exact hit reported by API.")
-                    break
+                last_best = solver.best_sim
+
+            # Diversify via farthest heuristic (safe: vocab already clean)
+            if stagnant >= 5 and solver.best_idx is not None and len(excluded) < len(vocab):
+                sims_to_best = emb_matrix @ emb_matrix[solver.best_idx]
+                far_idx = int(np.argmin(sims_to_best))
+                if far_idx not in excluded:
+                    print("[DIVERSIFY] using distant word:", vocab[far_idx])
+                    w2 = vocab[far_idx]
+                    sc2, st2 = feedback_fn(w2)
+                    solver.update(far_idx, sc2)
+                    excluded.add(far_idx)
+                    hit_seen = hit_seen or st2.get("hit", False)
+                    entry = {
+                        "iter": len(trajectory)+1,
+                        "mode": "jump",
+                        "guess": w2,
+                        "score": float(sc2),
+                        "distance": st2.get("distance"),
+                        "best_so_far": vocab[solver.best_idx] if solver.best_idx is not None else None
+                    }
+                    trajectory.append(entry)
+                    _log_entry(entry)
+                    stagnant = 0
+                    if hit_seen:
+                        print("[SUCCESS] exact hit reported by API.")
+                        break
 
     duration = time.time() - start_time
     is_successful = bool(hit_seen)
@@ -213,6 +230,8 @@ def play_game_and_record(game_id=None):
     with open(result_file, "a") as f:
         f.write(json.dumps(final) + "\n")
     print(f"[DONE] Results appended to {result_file}")
+
+    os.remove(live_file)
 
     # Persist bad words
     save_bad_words(bad_words)
